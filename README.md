@@ -78,8 +78,23 @@ The Firebase configuration (`lib/firebase_options.dart`, `android/app/google-ser
 ### Tests
 
 ```bash
+# App: validators, view models and UI flows (no Firebase needed)
 flutter test
+
+# Security Rules: 21 cases against the Firestore emulator (needs Java 11+)
+cd firestore-tests
+npm install
+npm run test:emulator
 ```
+
+### Security Rules
+
+All access rules live in [`firestore.rules`](firestore.rules) and are deployed with `firebase deploy --only firestore:rules`:
+
+- every read and write requires a signed-in user;
+- a user reads and writes only their own profile;
+- anyone signed in can read events, only the owner (`ownerId`) can edit one, and the owner can change neither the owner nor the server-side seat counter;
+- tickets are read-only for the app: only Cloud Functions can create or change them.
 
 ## Workflow
 
