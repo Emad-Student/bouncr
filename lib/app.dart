@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'data/auth_repository.dart';
 import 'data/event_repository.dart';
+import 'data/ticket_repository.dart';
 import 'data/user_repository.dart';
 import 'ui/auth/session_view_model.dart';
 import 'ui/navigation/app_router.dart';
@@ -14,11 +15,13 @@ class BouncrApp extends StatefulWidget {
     super.key,
     required this.authRepository,
     required this.eventRepository,
+    required this.ticketRepository,
     this.userRepository,
   });
 
   final AuthRepository authRepository;
   final EventRepository eventRepository;
+  final TicketRepository ticketRepository;
   final UserRepository? userRepository;
 
   @override
@@ -45,6 +48,7 @@ class _BouncrAppState extends State<BouncrApp> {
       providers: [
         Provider<AuthRepository>.value(value: widget.authRepository),
         Provider<EventRepository>.value(value: widget.eventRepository),
+        Provider<TicketRepository>.value(value: widget.ticketRepository),
         ChangeNotifierProvider<SessionViewModel>.value(value: _session),
       ],
       child: MaterialApp.router(

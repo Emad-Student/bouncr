@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../auth/session_view_model.dart';
 import '../navigation/routes.dart';
+import '../../domain/ticket.dart';
+import '../theme.dart';
 import 'event_card.dart';
 import 'events_view_model.dart';
 
@@ -47,8 +49,12 @@ class EventsScreen extends StatelessWidget {
                       label: Text('All'),
                       icon: Icon(Icons.event)),
                   ButtonSegment(
+                      value: EventsFilter.myTickets,
+                      label: Text('Tickets'),
+                      icon: Icon(Icons.confirmation_number_outlined)),
+                  ButtonSegment(
                       value: EventsFilter.myEvents,
-                      label: Text('My events'),
+                      label: Text('Mine'),
                       icon: Icon(Icons.star_outline)),
                 ],
                 selected: {vm.filter},
@@ -123,6 +129,7 @@ class _EventsBody extends StatelessWidget {
         action: TextButton(onPressed: vm.retry, child: const Text('Try again')),
       );
     }
+    if (vm.filter == EventsFilter.myTickets) return _TicketsList(vm: vm);
     if (vm.events.isEmpty) {
       return _Message(
         icon: Icons.celebration_outlined,
@@ -176,6 +183,54 @@ class _Message extends StatelessWidget {
           ?action,
         ]),
       ),
+    );
+  }
+}
+
+class _TicketsList extends StatelessWidget {
+  const _TicketsList({required this.vm});
+
+  final EventsViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    if (vm.myTickets.isEmpty) {
+      return const _Message(
+        icon: Icons.confirmation_number_outlined,
+        title: 'No tickets yet',
+        subtitle: 'Open an event and tap "Get my ticket".',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+      itemCount: vm.myTickets.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, i) {
+        final t = vm.myTickets[i];
+        final (label, color, icon) = switch (t.status) {
+          TicketStatus.valid => ('Valid', BouncrColors.valid, Icons.qr_code_2),
+          TicketStatus.used => ('Checked in', BouncrColors.brand, Icons.verified),
+          TicketStatus.cancelled => ('Cancelled', BouncrColors.invalid, Icons.block),
+        };
+        return Card(
+          key: ValueKey(t.id),
+          clipBehavior: Clip.antiAlias,
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            leading: CircleAvatar(
+              backgroundColor: color.withValues(alpha: 0.12),
+              child: Icon(icon, color: color),
+            ),
+            title: Text(t.eventTitle, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Align(
+              alignment: Alignment.centerLeft,
+              child: StatusBadge(label: label, color: color),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.event(t.eventId)),
+          ),
+        );
+      },
     );
   }
 }

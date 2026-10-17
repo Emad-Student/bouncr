@@ -11,18 +11,18 @@ import '../../domain/app_user.dart';
 /// The router listens to this object: screens never decide where to go after
 /// login or logout, navigation simply reacts to [isLoggedIn].
 class SessionViewModel extends ChangeNotifier {
-  SessionViewModel(this._repository, {UserRepository? userRepository})
-      : _userRepository = userRepository,
-        _user = _repository.currentUser {
+  SessionViewModel(this._repository, {this.userRepository})
+      : _user = _repository.currentUser {
     _subscription = _repository.userChanges().listen((user) {
       _user = user;
-      if (user != null) _userRepository?.ensureProfile(user);
+      if (user != null) userRepository?.ensureProfile(user);
       notifyListeners();
     });
   }
 
   final AuthRepository _repository;
-  final UserRepository? _userRepository;
+  /// Creates the Firestore profile on sign-in (optional in tests).
+  final UserRepository? userRepository;
   late final StreamSubscription<AppUser?> _subscription;
   AppUser? _user;
 

@@ -3,38 +3,57 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/event_repository.dart';
+import '../../data/ticket_repository.dart';
 import '../../domain/event.dart';
 import '../auth/session_view_model.dart';
 import '../navigation/routes.dart';
 import '../widgets/formatting.dart';
+import '../tickets/scanner_sheet.dart';
+import '../tickets/ticket_section.dart';
+import '../tickets/ticket_view_model.dart';
 import 'event_card.dart';
 
-/// Details of one event, live from Firestore.
-class EventDetailScreen extends StatelessWidget {
+/// Details of one event, live from Firestore, with the ticket part:
+/// attendees get / show their ticket, the organiser scans tickets.
+class EventDetailScreen extends StatefulWidget {
   const EventDetailScreen({super.key, required this.eventId});
 
   final String eventId;
 
   @override
-  Widget build(BuildContext context) {
-    final repo = context.read<EventRepository>();
-    final uid = context.watch<SessionViewModel>().user?.uid;
+  State<EventDetailScreen> createState() => _EventDetailScreenState();
+}
 
-    return StreamBuilder<Event?>(
-      stream: repo.watchEvent(eventId),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const _Scaffold(child: Center(child: Text('Could not load this event.')));
-        }
-        if (!snapshot.hasData && snapshot.connectionState != ConnectionState.active) {
-          return const _Scaffold(child: Center(child: CircularProgressIndicator()));
-        }
-        final event = snapshot.data;
-        if (event == null) {
-          return const _Scaffold(child: Center(child: Text('This event no longer exists.')));
-        }
-        return _EventDetail(event: event, isOwner: event.isOwnedBy(uid));
-      },
+class _EventDetailScreenState extends State<EventDetailScreen> {
+  // Created once so rebuilds do not re-subscribe to Firestore.
+  late final Stream<Event?> _event =
+      context.read<EventRepository>().watchEvent(widget.eventId);
+  late final String _uid = context.read<SessionViewModel>().user?.uid ?? '';
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => TicketViewModel(
+        context.read<TicketRepository>(),
+        eventId: widget.eventId,
+        uid: _uid,
+      ),
+      child: StreamBuilder<Event?>(
+        stream: _event,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const _Scaffold(child: Center(child: Text('Could not load this event.')));
+          }
+          if (!snapshot.hasData && snapshot.connectionState != ConnectionState.active) {
+            return const _Scaffold(child: Center(child: CircularProgressIndicator()));
+          }
+          final event = snapshot.data;
+          if (event == null) {
+            return const _Scaffold(child: Center(child: Text('This event no longer exists.')));
+          }
+          return _EventDetail(event: event, isOwner: event.isOwnedBy(_uid));
+        },
+      ),
     );
   }
 }
@@ -87,7 +106,18 @@ class _EventDetail extends StatelessWidget {
             icon: Icons.event_seat_outlined,
             label: '${event.ticketsIssued} of ${event.capacity} seats taken',
           ),
+          const SizedBox(height: 16),
+          if (isOwner)
+            FilledButton.icon(
+              key: const Key('scan_tickets'),
+              onPressed: () => showScannerSheet(context, event),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scan tickets at the door'),
+            )
+          else
+            TicketSection(event: event),
           if (event.description.isNotEmpty) ...[
+            const SizedBox(height: 8),
             const SizedBox(height: 16),
             Text('About', style: text.titleMedium),
             const SizedBox(height: 6),

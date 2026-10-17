@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/auth_repository.dart';
 import '../../data/event_repository.dart';
+import '../../data/ticket_repository.dart';
 import '../../domain/event.dart';
 import '../auth/auth_view_model.dart';
 import '../auth/login_screen.dart';
@@ -38,6 +39,7 @@ GoRouter createRouter(SessionViewModel session) {
         builder: (context, state) => ChangeNotifierProvider(
           create: (context) => EventsViewModel(
             context.read<EventRepository>(),
+            context.read<TicketRepository>(),
             uid: session.user?.uid ?? '',
           ),
           child: const EventsScreen(),

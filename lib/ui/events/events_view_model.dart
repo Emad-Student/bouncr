@@ -3,27 +3,34 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../data/event_repository.dart';
+import '../../data/ticket_repository.dart';
 import '../../domain/event.dart';
+import '../../domain/ticket.dart';
 
-enum EventsFilter { all, myEvents }
+enum EventsFilter { all, myTickets, myEvents }
 
-/// Live list of events for the home screen, with a filter.
+/// Live list of events (or of my tickets) for the home screen.
 class EventsViewModel extends ChangeNotifier {
-  EventsViewModel(this._repository, {required this.uid}) {
+  EventsViewModel(this._repository, this._tickets, {required this.uid}) {
     _subscribe();
   }
 
   final EventRepository _repository;
+  final TicketRepository _tickets;
   final String uid;
 
   EventsFilter _filter = EventsFilter.all;
   List<Event> _events = const [];
+  List<Ticket> _myTickets = const [];
   bool _isLoading = true;
   String? _error;
-  StreamSubscription<List<Event>>? _subscription;
+  StreamSubscription<Object>? _subscription;
 
   EventsFilter get filter => _filter;
   List<Event> get events => _events;
+
+  /// Active tickets first, cancelled ones last.
+  List<Ticket> get myTickets => _myTickets;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -41,23 +48,34 @@ class EventsViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    final stream = switch (_filter) {
-      EventsFilter.all => _repository.watchUpcoming(),
-      EventsFilter.myEvents => _repository.watchOwnedBy(uid),
-    };
-    _subscription = stream.listen(
-      (events) {
-        _events = events;
+    void onError(Object _) {
+      _isLoading = false;
+      _error = 'Could not load. Check your connection.';
+      notifyListeners();
+    }
+
+    if (_filter == EventsFilter.myTickets) {
+      _subscription = _tickets.watchMyTickets(uid).listen((tickets) {
+        _myTickets = [...tickets]..sort((a, b) =>
+            (a.status == TicketStatus.cancelled ? 1 : 0)
+                .compareTo(b.status == TicketStatus.cancelled ? 1 : 0));
         _isLoading = false;
         _error = null;
         notifyListeners();
-      },
-      onError: (Object _) {
-        _isLoading = false;
-        _error = 'Could not load events. Check your connection.';
-        notifyListeners();
-      },
-    );
+      }, onError: onError);
+      return;
+    }
+
+    final stream = switch (_filter) {
+      EventsFilter.myEvents => _repository.watchOwnedBy(uid),
+      _ => _repository.watchUpcoming(),
+    };
+    _subscription = stream.listen((events) {
+      _events = events;
+      _isLoading = false;
+      _error = null;
+      notifyListeners();
+    }, onError: onError);
   }
 
   @override
