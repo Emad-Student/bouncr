@@ -5,8 +5,8 @@
 /// while Authentication and Firestore stay in the real cloud project:
 ///
 /// ```
-/// flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=10.0.2.2      # Android emulator
-/// flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=192.168.1.20  # phone on the same Wi-Fi
+/// adb reverse tcp:5001 tcp:5001
+/// flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=127.0.0.1
 /// ```
 ///
 /// Without the define the app calls the deployed functions (Blaze plan).

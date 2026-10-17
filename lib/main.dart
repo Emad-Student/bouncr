@@ -19,9 +19,13 @@ Future<void> main() async {
   final firestore = FirebaseFirestore.instance;
   final functions = FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion);
   if (AppConfig.usesFunctionsEmulator) {
+    // FlutterFire rewrites 127.0.0.1 to 10.0.2.2 on Android, which only exists
+    // inside the Android emulator. With `adb reverse tcp:5001 tcp:5001`,
+    // 127.0.0.1 reaches the computer from emulators and USB phones alike.
     functions.useFunctionsEmulator(
       AppConfig.functionsEmulatorHost,
       AppConfig.functionsEmulatorPort,
+      automaticHostMapping: false,
     );
   }
 

@@ -87,12 +87,11 @@ firebase emulators:start --only functions
 
 ### 2. Run the app
 
-```bash
-# Android emulator (10.0.2.2 is the host machine as seen from the emulator)
-flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=10.0.2.2
+The app reaches the Functions emulator through `adb reverse`, which works the same for the Android emulator and for a phone connected by USB:
 
-# Physical phone on the same Wi-Fi: use your computer's LAN IP
-flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=192.168.1.20
+```bash
+adb reverse tcp:5001 tcp:5001        # once per device (add -s <serial> for several)
+flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=127.0.0.1
 ```
 
 The Firebase configuration (`lib/firebase_options.dart`, `android/app/google-services.json`) is committed: it identifies the Firebase project and is not a secret. Data is protected by Firestore Security Rules, and the ticket signing key lives only in `functions/.secret.local` (git-ignored) or Secret Manager.
