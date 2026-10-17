@@ -1,0 +1,103 @@
+rules_version = '2';
+
+// Bouncr security model
+// - Everything requires a signed-in user.
+// - users:   a user reads and writes only their own profile.
+// - events:  any user may create an event and becomes its owner (organiser);
+//            only the owner may edit it; seat counter is server-controlled.
+// - tickets: read-only for the app. Tickets are issued, validated and
+//            cancelled exclusively by Cloud Functions (Admin SDK bypasses rules),
+//            so a client can never forge a ticket or change its status.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isString(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
+    }
+
+    // ---------- users/{uid} ----------
+    function validUser(data) {
+      return data.keys().hasOnly(['email', 'displayName', 'createdAt'])
+        && data.keys().hasAll(['email', 'displayName', 'createdAt'])
+        && data.email == request.auth.token.email
+        && isString(data.displayName, 2, 40)
+        && data.createdAt is timestamp;
+    }
+
+    match /users/{uid} {
+      allow read: if isUser(uid);
+      allow create: if isUser(uid)
+        && validUser(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if isUser(uid)
+        && validUser(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    // ---------- events/{eventId} ----------
+    function validEvent(data) {
+      return data.keys().hasOnly(['ownerId', 'title', 'description', 'location',
+                                  'startsAt', 'capacity', 'ticketsIssued'])
+        && data.keys().hasAll(['ownerId', 'title', 'description', 'location',
+                               'startsAt', 'capacity', 'ticketsIssued'])
+        && isString(data.title, 3, 80)
+        && isString(data.description, 0, 1000)
+        && isString(data.location, 2, 80)
+        && data.startsAt is timestamp
+        && data.capacity is int && data.capacity >= 1 && data.capacity <= 5000
+        && data.ticketsIssued is int && data.ticketsIssued >= 0;
+    }
+
+    match /events/{eventId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && validEvent(request.resource.data)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.ticketsIssued == 0
+        && request.resource.data.startsAt > request.time;
+
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && validEvent(request.resource.data)
+        // ownership and the seat counter cannot be changed from the app
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.ticketsIssued == resource.data.ticketsIssued
+        // capacity cannot drop below tickets already issued
+        && request.resource.data.capacity >= resource.data.ticketsIssued
+        // a new date must be in the future
+        && (request.resource.data.startsAt == resource.data.startsAt
+            || request.resource.data.startsAt > request.time);
+
+      // deleting would orphan issued tickets
+      allow delete: if false;
+    }
+
+    // ---------- tickets/{eventId_uid} ----------
+    match /tickets/{ticketId} {
+      // the attendee reads their own ticket; the organiser of the event may
+      // read single tickets of their event
+      // (the app also watches its own not-yet-issued ticket id, which is
+      // why a missing document with the caller's uid suffix is readable)
+      allow get: if signedIn()
+        && ((resource == null
+             && ticketId.matches('[A-Za-z0-9]+_' + request.auth.uid))
+            || resource.data.ownerId == request.auth.uid
+            || get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.ownerId
+               == request.auth.uid);
+      // queries are limited to the caller's own tickets
+      allow list: if signedIn() && resource.data.ownerId == request.auth.uid;
+      // only Cloud Functions write tickets
+      allow write: if false;
+    }
+  }
+}

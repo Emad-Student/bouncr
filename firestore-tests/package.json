@@ -1,0 +1,13 @@
+{
+  "name": "bouncr-firestore-rules-tests",
+  "private": true,
+  "description": "Security Rules tests, run against the Firestore emulator",
+  "scripts": {
+    "test": "node --test \"*.test.mjs\"",
+    "test:emulator": "firebase emulators:exec --only firestore --project demo-bouncr \"npm test\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.0.0"
+  }
+}
