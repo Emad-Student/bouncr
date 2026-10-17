@@ -50,6 +50,14 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async => _set(null);
+
+  final List<String> resetRequests = [];
+
+  @override
+  Future<Result<void>> sendPasswordReset(String email) async {
+    resetRequests.add(email.trim().toLowerCase());
+    return const Result.success(null);
+  }
 }
 
 /// In-memory [EventRepository] that behaves like Firestore streams.

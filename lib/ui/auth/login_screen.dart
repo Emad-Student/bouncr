@@ -53,6 +53,24 @@ class LoginScreen extends StatelessWidget {
                       autofillHints: const [AutofillHints.password],
                       onSubmitted: (_) => vm.login(),
                     ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        key: const Key('forgot_password'),
+                        onPressed: state.isLoading
+                            ? null
+                            : () async {
+                                final sent = await vm.sendPasswordReset();
+                                if (sent && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                    content: Text(
+                                        'If an account exists for this email, a reset link is on its way.'),
+                                  ));
+                                }
+                              },
+                        child: const Text('Forgot password?'),
+                      ),
+                    ),
                     if (state.generalError != null) ...[
                       const SizedBox(height: 16),
                       ErrorBanner(state.generalError!),

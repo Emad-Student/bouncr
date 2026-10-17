@@ -21,6 +21,10 @@ abstract interface class AuthRepository {
   });
 
   Future<void> signOut();
+
+  /// Sends a password-reset link. Succeeds even if no account exists, so the
+  /// app does not reveal which emails are registered.
+  Future<Result<void>> sendPasswordReset(String email);
 }
 
 /// [AuthRepository] backed by Firebase Authentication. This is the only class
@@ -43,7 +47,7 @@ class FirebaseAuthRepository implements AuthRepository {
   }) {
     return _guard(() async {
       await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
+        email: _normalise(email),
         password: password,
       );
     });
@@ -57,7 +61,7 @@ class FirebaseAuthRepository implements AuthRepository {
   }) {
     return _guard(() async {
       final credential = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
+        email: _normalise(email),
         password: password,
       );
       await credential.user?.updateDisplayName(displayName.trim());
@@ -66,6 +70,20 @@ class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() => _auth.signOut();
+
+  @override
+  Future<Result<void>> sendPasswordReset(String email) async {
+    final result = await _guard(() => _auth.sendPasswordResetEmail(email: _normalise(email)));
+    // "user-not-found" is reported as success on purpose (see interface).
+    if (result case Failure(:final message)
+        when message == authErrorMessage('user-not-found')) {
+      return const Result.success(null);
+    }
+    return result;
+  }
+
+  /// Emails are case-insensitive; trimming avoids "invisible" typos.
+  static String _normalise(String email) => email.trim().toLowerCase();
 
   Future<Result<void>> _guard(Future<void> Function() action) async {
     try {

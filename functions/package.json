@@ -7,7 +7,7 @@
     "node": "22"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/ensure-secret.mjs && tsc",
     "build:watch": "tsc --watch",
     "test": "npm run build && node --test \"lib/test/**/*.test.js\"",
     "serve": "npm run build && firebase emulators:start",

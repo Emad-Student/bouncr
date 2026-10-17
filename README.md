@@ -79,8 +79,7 @@ Deploying Cloud Functions requires the paid Blaze plan, so on the free Spark pla
 ```bash
 cd functions
 npm install
-cp .secret.local.example .secret.local   # then put a long random string in it
-npm run build
+npm run build        # also creates functions/.secret.local with a random signing key on first run
 cd ..
 firebase emulators:start --only functions
 ```
@@ -99,7 +98,7 @@ The Firebase configuration (`lib/firebase_options.dart`, `android/app/google-ser
 ### Tests
 
 ```bash
-# App: validators, view models and UI flows (no Firebase needed), 37 tests
+# App: validators, view models and UI flows (no Firebase needed), 38 tests
 flutter test
 
 # Security Rules: 21 cases against the Firestore emulator

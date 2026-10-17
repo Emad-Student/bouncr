@@ -9,16 +9,32 @@
  * The Admin SDK bypasses Firestore Security Rules, which forbid the app from
  * writing tickets or the seat counter at all.
  */
-import { initializeApp } from "firebase-admin/app";
-import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
+import type { Firestore, Timestamp } from "firebase-admin/firestore";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 
 import { parseCode, sign, ticketIdFor, verify } from "./ticket_code";
 
-initializeApp();
-const db = getFirestore();
+/**
+ * The Admin SDK (gRPC) is loaded on first use instead of at import time:
+ * deployment / emulator discovery only needs the function definitions, and
+ * cold starts get faster.
+ */
+let firestore: Firestore | undefined;
+function db(): Firestore {
+  if (!firestore) {
+    const { initializeApp, getApps } = require("firebase-admin/app") as typeof import("firebase-admin/app");
+    const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+    if (getApps().length === 0) initializeApp();
+    firestore = getFirestore();
+  }
+  return firestore;
+}
+
+function fieldValue(): typeof import("firebase-admin/firestore").FieldValue {
+  return (require("firebase-admin/firestore") as typeof import("firebase-admin/firestore")).FieldValue;
+}
 
 // Same region as the Firestore database (Warsaw).
 setGlobalOptions({ region: "europe-central2", maxInstances: 5 });
@@ -59,8 +75,8 @@ function requireEventId(data: unknown): string {
   return eventId;
 }
 
-const eventRef = (id: string) => db.collection("events").doc(id);
-const ticketRef = (id: string) => db.collection("tickets").doc(id);
+const eventRef = (id: string) => db().collection("events").doc(id);
+const ticketRef = (id: string) => db().collection("tickets").doc(id);
 
 /**
  * RSVP: issues a signed ticket for the caller.
@@ -71,7 +87,7 @@ export const issueTicket = onCall({ secrets: [signingSecret] }, async (request) 
   const eventId = requireEventId(request.data);
   const ticketId = ticketIdFor(eventId, uid);
 
-  return db.runTransaction(async (tx) => {
+  return db().runTransaction(async (tx) => {
     const [eventSnap, ticketSnap] = await Promise.all([
       tx.get(eventRef(eventId)),
       tx.get(ticketRef(ticketId)),
@@ -99,7 +115,7 @@ export const issueTicket = onCall({ secrets: [signingSecret] }, async (request) 
       usedAt: null,
     };
     tx.set(ticketRef(ticketId), ticket);
-    tx.update(eventRef(eventId), { ticketsIssued: FieldValue.increment(1) });
+    tx.update(eventRef(eventId), { ticketsIssued: fieldValue().increment(1) });
     return { ticketId, status: ticket.status, created: true };
   });
 });
@@ -126,7 +142,7 @@ export const validateTicket = onCall({ secrets: [signingSecret] }, async (reques
   }
   if (parsed.eventId !== eventId) return { result: "wrong_event" as ScanResult };
 
-  const outcome = await db.runTransaction(async (tx) => {
+  const outcome = await db().runTransaction(async (tx) => {
     const snap = await tx.get(ticketRef(parsed.ticketId));
     if (!snap.exists) return { result: "invalid" as ScanResult };
     const ticket = snap.data() as TicketDoc;
@@ -141,7 +157,7 @@ export const validateTicket = onCall({ secrets: [signingSecret] }, async (reques
         usedAt: ticket.usedAt?.toDate().toISOString(),
       };
     }
-    tx.update(snap.ref, { status: "used", usedAt: FieldValue.serverTimestamp() });
+    tx.update(snap.ref, { status: "used", usedAt: fieldValue().serverTimestamp() });
     return { result: "admitted" as ScanResult, ownerId: ticket.ownerId };
   });
 
@@ -153,7 +169,7 @@ export const validateTicket = onCall({ secrets: [signingSecret] }, async (reques
   };
   let attendeeName: string | null = null;
   if (ownerId) {
-    const profile = await db.collection("users").doc(ownerId).get();
+    const profile = await db().collection("users").doc(ownerId).get();
     attendeeName = (profile.get("displayName") as string | undefined) ?? null;
   }
   return { result, attendeeName, usedAt: usedAt ?? null };
@@ -165,7 +181,7 @@ export const cancelTicket = onCall(async (request) => {
   const eventId = requireEventId(request.data);
   const ticketId = ticketIdFor(eventId, uid);
 
-  return db.runTransaction(async (tx) => {
+  return db().runTransaction(async (tx) => {
     const snap = await tx.get(ticketRef(ticketId));
     if (!snap.exists) throw new HttpsError("not-found", "You have no ticket for this event.");
     const ticket = snap.data() as TicketDoc;
@@ -175,7 +191,7 @@ export const cancelTicket = onCall(async (request) => {
     if (ticket.status === "cancelled") return { ticketId, status: "cancelled" };
 
     tx.update(snap.ref, { status: "cancelled" });
-    tx.update(eventRef(eventId), { ticketsIssued: FieldValue.increment(-1) });
+    tx.update(eventRef(eventId), { ticketsIssued: fieldValue().increment(-1) });
     return { ticketId, status: "cancelled" };
   });
 });

@@ -83,4 +83,22 @@ void main() {
     expect(find.byKey(const Key('new_event')), findsOneWidget);
     expect(find.byKey(const Key('login_submit')), findsNothing);
   });
+
+  testWidgets('forgot password validates the email, then sends a reset link',
+      (tester) async {
+    final repo = FakeAuthRepository();
+    await tester.pumpWidget(BouncrApp(authRepository: repo, eventRepository: FakeEventRepository(), ticketRepository: FakeTicketRepository(events: FakeEventRepository(), currentUid: () => 'u1')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('forgot_password')));
+    await tester.pumpAndSettle();
+    expect(find.text('Email is required'), findsOneWidget);
+    expect(repo.resetRequests, isEmpty);
+
+    await tester.enterText(find.byKey(const Key('login_email')), '  Emad@Uni.pl ');
+    await tester.tap(find.byKey(const Key('forgot_password')));
+    await tester.pumpAndSettle();
+    expect(repo.resetRequests, ['emad@uni.pl']);
+    expect(find.textContaining('reset link is on its way'), findsOneWidget);
+  });
 }

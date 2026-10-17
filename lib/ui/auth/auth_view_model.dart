@@ -142,6 +142,24 @@ class AuthViewModel extends ChangeNotifier {
         ));
   }
 
+  /// Returns true when the reset email was sent (or the address is unknown).
+  Future<bool> sendPasswordReset() async {
+    if (_state.isLoading) return false;
+    final emailError = AuthValidator.validateEmail(_state.email);
+    _emit(_state.copyWith(emailError: () => emailError, generalError: () => null));
+    if (emailError != null) return false;
+    _emit(_state.copyWith(isLoading: true));
+    final result = await _repository.sendPasswordReset(_state.email);
+    switch (result) {
+      case Success():
+        _emit(_state.copyWith(isLoading: false));
+        return true;
+      case Failure(:final message):
+        _emit(_state.copyWith(isLoading: false, generalError: () => message));
+        return false;
+    }
+  }
+
   Future<void> _submit(Future<Result<void>> Function() call) async {
     _emit(_state.copyWith(isLoading: true));
     final result = await call();
