@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:bouncr/data/auth_repository.dart';
 import 'package:bouncr/data/event_repository.dart';
+import 'package:bouncr/data/ticket_repository.dart';
 import 'package:bouncr/domain/app_user.dart';
 import 'package:bouncr/domain/event.dart';
 import 'package:bouncr/domain/result.dart';
+import 'package:bouncr/domain/ticket.dart';
 
 /// In-memory [AuthRepository] so the UI can be tested without Firebase.
 class FakeAuthRepository implements AuthRepository {
@@ -136,4 +138,88 @@ Event sampleEvent({
     capacity: capacity,
     ticketsIssued: ticketsIssued,
   );
+}
+
+/// In-memory [TicketRepository] that mimics the Cloud Functions rules:
+/// capacity, one ticket per user, one-time check-in.
+class FakeTicketRepository implements TicketRepository {
+  FakeTicketRepository({required this.events, required this.currentUid});
+
+  final FakeEventRepository events;
+  String Function() currentUid;
+  final Map<String, Ticket> tickets = {};
+  final _changes = StreamController<void>.broadcast();
+  int validateCalls = 0;
+
+  Stream<T> _live<T>(T Function() read) async* {
+    yield read();
+    yield* _changes.stream.map((_) => read());
+  }
+
+  @override
+  Stream<Ticket?> watchMyTicket(String eventId, String uid) =>
+      _live(() => tickets[Ticket.idFor(eventId, uid)]);
+
+  @override
+  Stream<List<Ticket>> watchMyTickets(String uid) =>
+      _live(() => tickets.values.where((t) => t.ownerId == uid).toList());
+
+  @override
+  Future<Result<void>> issue(String eventId) async {
+    final uid = currentUid();
+    final id = Ticket.idFor(eventId, uid);
+    final existing = tickets[id];
+    if (existing != null && existing.status != TicketStatus.cancelled) {
+      return const Result.success(null);
+    }
+    final event = events.all.firstWhere((e) => e.id == eventId);
+    if (event.isSoldOut) return const Result.failure('Sorry, this event is sold out.');
+    tickets[id] = Ticket(
+      id: id,
+      ownerId: uid,
+      eventId: eventId,
+      eventTitle: event.title,
+      status: TicketStatus.valid,
+      signature: 'sig-$id-abcdefghijklmnopqrstuvwxyz',
+    );
+    _changes.add(null);
+    return const Result.success(null);
+  }
+
+  @override
+  Future<Result<void>> cancel(String eventId) async {
+    final id = Ticket.idFor(eventId, currentUid());
+    final t = tickets[id];
+    if (t == null) return const Result.failure('You have no ticket for this event.');
+    tickets[id] = _copy(t, TicketStatus.cancelled);
+    _changes.add(null);
+    return const Result.success(null);
+  }
+
+  @override
+  Future<Result<ScanResult>> validate(String eventId, String code) async {
+    validateCalls++;
+    final t = tickets.values.where((t) => t.code == code).firstOrNull;
+    if (t == null) return const Result.success(ScanResult(ScanOutcome.invalid));
+    if (t.eventId != eventId) return const Result.success(ScanResult(ScanOutcome.wrongEvent));
+    if (t.status == TicketStatus.used) {
+      return const Result.success(ScanResult(ScanOutcome.alreadyUsed, attendeeName: 'Guest'));
+    }
+    if (t.status == TicketStatus.cancelled) {
+      return const Result.success(ScanResult(ScanOutcome.cancelled));
+    }
+    tickets[t.id] = _copy(t, TicketStatus.used);
+    _changes.add(null);
+    return const Result.success(ScanResult(ScanOutcome.admitted, attendeeName: 'Guest'));
+  }
+
+  static Ticket _copy(Ticket t, TicketStatus status) => Ticket(
+        id: t.id,
+        ownerId: t.ownerId,
+        eventId: t.eventId,
+        eventTitle: t.eventTitle,
+        status: status,
+        signature: t.signature,
+        usedAt: status == TicketStatus.used ? DateTime.now() : t.usedAt,
+      );
 }

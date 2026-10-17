@@ -12,6 +12,7 @@ Future<void> pumpApp(WidgetTester tester, FakeEventRepository events) async {
   await tester.pumpWidget(BouncrApp(
     authRepository: FakeAuthRepository(signedIn: me),
     eventRepository: events,
+    ticketRepository: FakeTicketRepository(events: events, currentUid: () => me.uid),
   ));
   await tester.pumpAndSettle();
 }
@@ -37,7 +38,7 @@ void main() {
         sampleEvent(id: 'b', title: 'My hackathon', ownerId: 'me'),
       ]),
     );
-    await tester.tap(find.text('My events'));
+    await tester.tap(find.text('Mine'));
     await tester.pumpAndSettle();
 
     expect(find.text('My hackathon'), findsOneWidget);
