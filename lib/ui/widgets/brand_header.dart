@@ -12,15 +12,8 @@ class BrandHeader extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return Column(
       children: [
-        Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            color: scheme.primary,
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Icon(Icons.qr_code_2_rounded, size: 46, color: scheme.onPrimary),
-        ),
+        Image.asset('assets/icon/icon.png', width: 84, height: 84,
+            semanticLabel: 'Bouncr logo'),
         const SizedBox(height: 16),
         Text('Bouncr',
             style: text.headlineLarge?.copyWith(fontWeight: FontWeight.w800)),
