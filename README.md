@@ -30,7 +30,7 @@ Individual project, approved by the instructor. Flutter is used instead of Kotli
 | 3 | **Create & edit my event**: owner only, enforced by Security Rules | Sprint 1 (Lab 2) |
 | 4 | **Get a ticket**: RSVP. A Cloud Function issues an HMAC-signed QR ticket, no overbooking | Lab 3 |
 | 5 | **Check-in at the door**: organiser scans the QR, valid once, reuse or forgery rejected | Lab 3 |
-| 6 | **Cancel my ticket**: frees the seat | Later |
+| 6 | **Cancel my ticket**: frees the seat | Lab 3 |
 
 ## Data model (Cloud Firestore)
 
@@ -64,28 +64,58 @@ Flutter 3 · Dart 3 · Firebase Authentication · Cloud Firestore · Cloud Funct
 
 ## How to run
 
-**Requirements:** Flutter SDK (stable), Android SDK with an emulator (API 26+, Google Play image) or a phone with USB debugging.
+**Requirements:** Flutter SDK (stable), Android SDK with an emulator (API 26+, Google Play image) or a phone with USB debugging, Node.js 22+, Firebase CLI, Java 11+ (for the emulators).
 
 ```bash
 git clone https://github.com/Emad-Student/bouncr.git
 cd bouncr
 flutter pub get
-flutter run
 ```
 
-The Firebase configuration (`lib/firebase_options.dart`, `android/app/google-services.json`) is committed: it identifies the Firebase project and is not a secret. Data is protected by Firestore Security Rules.
+### 1. Start the ticket backend (Cloud Functions)
+
+Deploying Cloud Functions requires the paid Blaze plan, so on the free Spark plan they run in the **Firebase Emulator** on your machine. Authentication and Firestore stay in the real cloud project, which is why users, events and tickets show up in the Firebase Console.
+
+```bash
+cd functions
+npm install
+cp .secret.local.example .secret.local   # then put a long random string in it
+npm run build
+cd ..
+firebase emulators:start --only functions
+```
+
+### 2. Run the app
+
+```bash
+# Android emulator (10.0.2.2 is the host machine as seen from the emulator)
+flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=10.0.2.2
+
+# Physical phone on the same Wi-Fi: use your computer's LAN IP
+flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=192.168.1.20
+```
+
+The Firebase configuration (`lib/firebase_options.dart`, `android/app/google-services.json`) is committed: it identifies the Firebase project and is not a secret. Data is protected by Firestore Security Rules, and the ticket signing key lives only in `functions/.secret.local` (git-ignored) or Secret Manager.
 
 ### Tests
 
 ```bash
-# App: validators, view models and UI flows (no Firebase needed)
+# App: validators, view models and UI flows (no Firebase needed), 37 tests
 flutter test
 
-# Security Rules: 21 cases against the Firestore emulator (needs Java 11+)
-cd firestore-tests
-npm install
-npm run test:emulator
+# Security Rules: 21 cases against the Firestore emulator
+cd firestore-tests && npm install && npm run test:emulator && cd ..
+
+# Cloud Functions: ticket-code unit tests + end-to-end tests on the Auth/Firestore/Functions
+# emulators, including 20 simultaneous RSVPs for 5 seats → exactly 5 tickets
+cd functions && npm test && npm run test:integration
 ```
+
+## How a ticket stays secure
+
+1. **RSVP**: the app calls `issueTicket`. Inside one Firestore transaction the function checks the seats, creates `tickets/{eventId}_{uid}` and increments `ticketsIssued`. Concurrent requests cannot overbook, and a second RSVP returns the same ticket.
+2. **QR code**: `BNCR1.<ticketId>.<signature>`, where the signature is an HMAC-SHA256 made with a server-only secret. A QR built by anyone else fails verification.
+3. **Door check-in**: only the event's organiser can call `validateTicket`. It verifies the signature in constant time and flips `valid` to `used` exactly once in a transaction, so a screenshot shown twice gets *Already used*.
 
 ### Security Rules
 
