@@ -40,10 +40,14 @@ class _PasswordFieldState extends State<PasswordField> {
         labelText: widget.label,
         errorText: widget.errorText,
         prefixIcon: const Icon(Icons.lock_outline),
-        suffixIcon: IconButton(
-          tooltip: _obscured ? 'Show password' : 'Hide password',
-          icon: Icon(_obscured ? Icons.visibility : Icons.visibility_off),
-          onPressed: () => setState(() => _obscured = !_obscured),
+        // Excluded from focus traversal: otherwise the keyboard "Next" action
+        // lands on this button and Enter would reveal the password.
+        suffixIcon: ExcludeFocus(
+          child: IconButton(
+            tooltip: _obscured ? 'Show password' : 'Hide password',
+            icon: Icon(_obscured ? Icons.visibility : Icons.visibility_off),
+            onPressed: () => setState(() => _obscured = !_obscured),
+          ),
         ),
       ),
     );
