@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug builds only: the Firebase Functions emulator on the developer's
+         machine is reached over plain HTTP. Release builds keep HTTPS only. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>
