@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/event.dart';
@@ -58,23 +60,34 @@ class FirestoreEventRepository implements EventRepository {
 
   @override
   Future<Result<String>> create(String ownerId, EventDraft draft) async {
-    try {
-      final ref = await _events.add({
+    // The id is generated locally so the write can complete offline.
+    final ref = _events.doc();
+    return _write(
+      ref.set({
         'ownerId': ownerId,
         ..._draftFields(draft),
         'ticketsIssued': 0,
-      });
-      return Result.success(ref.id);
-    } on FirebaseException catch (e) {
-      return Result.failure(firestoreErrorMessage(e.code));
-    }
+      }),
+      ref.id,
+    );
   }
 
   @override
-  Future<Result<void>> update(String id, EventDraft draft) async {
+  Future<Result<void>> update(String id, EventDraft draft) =>
+      _write(_events.doc(id).update(_draftFields(draft)), null);
+
+  /// Firestore applies a write locally at once but completes the future only
+  /// when the server confirms it. Without a connection that never happens, so
+  /// after [_serverTimeout] the write is treated as saved: it stays queued on
+  /// the device and is synced automatically when the connection returns.
+  static const _serverTimeout = Duration(seconds: 10);
+
+  Future<Result<T>> _write<T>(Future<void> write, T value) async {
     try {
-      await _events.doc(id).update(_draftFields(draft));
-      return const Result.success(null);
+      await write.timeout(_serverTimeout);
+      return Result.success(value);
+    } on TimeoutException {
+      return Result.success(value);
     } on FirebaseException catch (e) {
       return Result.failure(firestoreErrorMessage(e.code));
     }
