@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "361359421398",
+    "project_id": "bouncr-60051",
+    "storage_bucket": "bouncr-60051.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:361359421398:android:fbfaa0cf7adb08a925fe77",
+        "android_client_info": {
+          "package_name": "com.emadabouelsaad.bouncr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0hnNPJepRrcj7PbqYBxL6dpQcs8z5ajU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
