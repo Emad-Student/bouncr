@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Flutter-3-02569B?logo=flutter" alt="Flutter">
   <img src="https://img.shields.io/badge/Firebase-Auth%20%C2%B7%20Firestore%20%C2%B7%20Functions-FFCA28?logo=firebase&logoColor=black" alt="Firebase">
   <img src="https://img.shields.io/badge/Cloud%20Functions-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/tests-74%20passing-2ea44f" alt="70 tests">
+  <img src="https://img.shields.io/badge/tests-74%20passing-2ea44f" alt="74 tests passing">
 </p>
 
 ---
