@@ -74,8 +74,10 @@ class FirebaseTicketRepository implements TicketRepository {
   ) async {
     try {
       final result = await _functions
-          .httpsCallable(name,
-              options: HttpsCallableOptions(timeout: const Duration(seconds: 20)))
+          .httpsCallable(
+            name,
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+          )
           .call<Map<String, dynamic>>(data);
       return Result.success(parse(Map<String, dynamic>.from(result.data)));
     } on FirebaseFunctionsException catch (e) {
@@ -87,13 +89,15 @@ class FirebaseTicketRepository implements TicketRepository {
         'failed-precondition' ||
         'permission-denied' ||
         'not-found' ||
-        'unauthenticated' =>
-          serverMessage ?? firestoreErrorMessage(e.code),
+        'unauthenticated' ||
+        'aborted' => serverMessage ?? firestoreErrorMessage(e.code),
         _ => 'The ticket service is unreachable. Please try again',
       };
       return Result.failure(friendly);
     } catch (_) {
-      return const Result.failure('The ticket service is unreachable. Please try again');
+      return const Result.failure(
+        'The ticket service is unreachable. Please try again',
+      );
     }
   }
 

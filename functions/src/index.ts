@@ -14,6 +14,7 @@ import { setGlobalOptions } from "firebase-functions/v2";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 
+import { withContentionRetry } from "./retry";
 import { parseCode, sign, ticketIdFor, verify } from "./ticket_code";
 
 /**
@@ -87,7 +88,7 @@ export const issueTicket = onCall({ secrets: [signingSecret] }, async (request) 
   const eventId = requireEventId(request.data);
   const ticketId = ticketIdFor(eventId, uid);
 
-  return db().runTransaction(async (tx) => {
+  return withContentionRetry(() => db().runTransaction(async (tx) => {
     const [eventSnap, ticketSnap] = await Promise.all([
       tx.get(eventRef(eventId)),
       tx.get(ticketRef(ticketId)),
@@ -117,7 +118,7 @@ export const issueTicket = onCall({ secrets: [signingSecret] }, async (request) 
     tx.set(ticketRef(ticketId), ticket);
     tx.update(eventRef(eventId), { ticketsIssued: fieldValue().increment(1) });
     return { ticketId, status: ticket.status, created: true };
-  });
+  }));
 });
 
 type ScanResult = "admitted" | "already_used" | "cancelled" | "wrong_event" | "invalid";
@@ -142,7 +143,7 @@ export const validateTicket = onCall({ secrets: [signingSecret] }, async (reques
   }
   if (parsed.eventId !== eventId) return { result: "wrong_event" as ScanResult };
 
-  const outcome = await db().runTransaction(async (tx) => {
+  const outcome = await withContentionRetry(() => db().runTransaction(async (tx) => {
     const snap = await tx.get(ticketRef(parsed.ticketId));
     if (!snap.exists) return { result: "invalid" as ScanResult };
     const ticket = snap.data() as TicketDoc;
@@ -159,7 +160,7 @@ export const validateTicket = onCall({ secrets: [signingSecret] }, async (reques
     }
     tx.update(snap.ref, { status: "used", usedAt: fieldValue().serverTimestamp() });
     return { result: "admitted" as ScanResult, ownerId: ticket.ownerId };
-  });
+  }));
 
   // The attendee's uid stays on the server; only their display name is returned.
   const { result, ownerId, usedAt } = outcome as {
@@ -181,7 +182,7 @@ export const cancelTicket = onCall(async (request) => {
   const eventId = requireEventId(request.data);
   const ticketId = ticketIdFor(eventId, uid);
 
-  return db().runTransaction(async (tx) => {
+  return withContentionRetry(() => db().runTransaction(async (tx) => {
     const snap = await tx.get(ticketRef(ticketId));
     if (!snap.exists) throw new HttpsError("not-found", "You have no ticket for this event.");
     const ticket = snap.data() as TicketDoc;
@@ -193,5 +194,5 @@ export const cancelTicket = onCall(async (request) => {
     tx.update(snap.ref, { status: "cancelled" });
     tx.update(eventRef(eventId), { ticketsIssued: fieldValue().increment(-1) });
     return { ticketId, status: "cancelled" };
-  });
+  }));
 });
