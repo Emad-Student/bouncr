@@ -11,9 +11,12 @@ class BouncrColors {
 }
 
 ThemeData buildTheme(Brightness brightness) {
+  // "fidelity" keeps the exact brand violet of the app icon instead of the
+  // muted tone Material 3 derives by default.
   final scheme = ColorScheme.fromSeed(
     seedColor: BouncrColors.brand,
     brightness: brightness,
+    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
   );
   final radius = BorderRadius.circular(14);
   return ThemeData(
