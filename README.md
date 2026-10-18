@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Emad-Student/bouncr/actions/workflows/ci.yml"><img src="https://github.com/Emad-Student/bouncr/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Emad-Abouelsaad/bouncr/actions/workflows/ci.yml"><img src="https://github.com/Emad-Abouelsaad/bouncr/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Flutter-3-02569B?logo=flutter" alt="Flutter">
   <img src="https://img.shields.io/badge/Firebase-Auth%20%C2%B7%20Firestore%20%C2%B7%20Functions-FFCA28?logo=firebase&logoColor=black" alt="Firebase">
   <img src="https://img.shields.io/badge/Cloud%20Functions-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
@@ -24,6 +24,8 @@
 **Bouncr** lets any student publish an event with a limited number of seats. Attendees get a **QR ticket issued and signed by the server**, and the organiser scans it at the door. A valid ticket is accepted **exactly once**, while a copied, reused or forged one is rejected.
 
 Built with **Flutter** and **Firebase (Google Cloud)** for the course *Project – Mobile Application in the Cloud* at Akademia WSB.
+
+> **Demo:** to try the app against the live Firebase project, ask me for the demo accounts, or register your own account in the app.
 
 ## Screenshots
 
@@ -112,7 +114,7 @@ All suites run on every pull request in **GitHub Actions** ([`ci.yml`](.github/w
 **Requirements:** Flutter SDK (stable), Android SDK with an emulator (API 26+, Google Play image) or a phone with USB debugging, Node.js 22+, Firebase CLI, Java 11+ (for the emulators).
 
 ```bash
-git clone https://github.com/Emad-Student/bouncr.git
+git clone https://github.com/Emad-Abouelsaad/bouncr.git
 cd bouncr
 flutter pub get
 ```
@@ -137,8 +139,6 @@ The app reaches the Functions emulator through `adb reverse`, which works the sa
 adb reverse tcp:5001 tcp:5001        # once per device (add -s <serial> for several)
 flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=127.0.0.1
 ```
-
-Demo accounts (password `secret123`): **emad.organiser@bouncr-demo.com** organises the demo events, and **emad.guest@bouncr-demo.com** holds tickets.
 
 The Firebase configuration (`lib/firebase_options.dart`, `android/app/google-services.json`) is committed: it identifies the Firebase project and is not a secret. Data is protected by Firestore Security Rules, and the ticket signing key lives only in `functions/.secret.local` (git-ignored) or Secret Manager.
 
@@ -166,4 +166,4 @@ Individual project, approved by the instructor. Flutter is used instead of Kotli
 
 - `main` is protected by a ruleset: pull request required, no force pushes, no deletion.
 - Feature branches with small [conventional commits](https://www.conventionalcommits.org/). Every PR is reviewed, passes CI and is squash-merged.
-- Planning lives on the [Sprint board](https://github.com/users/Emad-Student/projects/1): user stories with acceptance criteria, plus bugs found during testing (#11, #14).
+- Planning lived on a GitHub Projects sprint board (Backlog → Sprint 1 → In progress → In review → Done) with user stories, acceptance criteria and the bugs found during testing (#11, #14, #19).
