@@ -1,38 +1,94 @@
-# Bouncr 🕶️
+<p align="center">
+  <img src="assets/icon/icon.png" width="110" alt="Bouncr logo">
+</p>
 
-**The digital bouncer for student events.** Secure QR tickets, with no fake tickets and no double entry.
+<h1 align="center">Bouncr</h1>
 
-> Student clubs run their events with Google Forms and screenshot "tickets", so tickets get copied and shared, events get overbooked, and organisers have no reliable way to check who is allowed in.
+<p align="center">
+  <b>The digital bouncer for student events.</b><br>
+  Server-signed QR tickets: no fake tickets, no double entry, no overbooking.
+</p>
 
-Bouncr lets any student publish an event with a limited number of seats. Attendees get a **server-signed QR ticket**, and the organiser scans it at the door: a valid ticket is accepted **once**, while a copied, reused or forged one is rejected.
-
-Built with **Flutter** and **Firebase (Google Cloud)** for the course *Project – Mobile Application in the Cloud* at Akademia WSB.
+<p align="center">
+  <a href="https://github.com/Emad-Student/bouncr/actions/workflows/ci.yml"><img src="https://github.com/Emad-Student/bouncr/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Flutter-3-02569B?logo=flutter" alt="Flutter">
+  <img src="https://img.shields.io/badge/Firebase-Auth%20%C2%B7%20Firestore%20%C2%B7%20Functions-FFCA28?logo=firebase&logoColor=black" alt="Firebase">
+  <img src="https://img.shields.io/badge/Cloud%20Functions-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/tests-70%20passing-2ea44f" alt="70 tests">
+</p>
 
 ---
 
-## Team
+> **Problem.** Student clubs run their events with Google Forms and screenshot "tickets", so tickets get copied and shared, events get overbooked, and organisers have no reliable way to check who is allowed in.
 
-| Role | Member |
-|---|---|
-| Product Owner | Emad Abouelsaad |
-| Tech Lead | Emad Abouelsaad |
-| Developer | Emad Abouelsaad |
-| QA / DevOps | Emad Abouelsaad |
+**Bouncr** lets any student publish an event with a limited number of seats. Attendees get a **QR ticket issued and signed by the server**, and the organiser scans it at the door. A valid ticket is accepted **exactly once**, while a copied, reused or forged one is rejected.
 
-Individual project, approved by the instructor. Flutter is used instead of Kotlin/Compose, also with the instructor's approval.
+Built with **Flutter** and **Firebase (Google Cloud)** for the course *Project – Mobile Application in the Cloud* at Akademia WSB.
 
-## MVP features
+## Screenshots
 
-| # | Feature | Sprint |
+| Sign in | Live events | Signed QR ticket | My tickets |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/01-login.png" width="190"> | <img src="docs/screenshots/03-events.png" width="190"> | <img src="docs/screenshots/04-ticket.png" width="190"> | <img src="docs/screenshots/05-my-tickets.png" width="190"> |
+
+| Organiser view | Create event | Door check-in ✅ | Second scan ❌ |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/06-organiser.png" width="190"> | <img src="docs/screenshots/07-create-event.png" width="190"> | <img src="docs/screenshots/08-scan-admitted.png" width="190"> | <img src="docs/screenshots/09-scan-used.png" width="190"> |
+
+## Features
+
+| # | Feature | Delivered |
 |---|---|---|
-| 1 | **Account**: register, log in, log out, auto-login | Sprint 1 (Lab 1) |
-| 2 | **Browse events**: live list of upcoming events with seats left | Sprint 1 (Lab 2) |
-| 3 | **Create & edit my event**: owner only, enforced by Security Rules | Sprint 1 (Lab 2) |
-| 4 | **Get a ticket**: RSVP. A Cloud Function issues an HMAC-signed QR ticket, no overbooking | Lab 3 |
-| 5 | **Check-in at the door**: organiser scans the QR, valid once, reuse or forgery rejected | Lab 3 |
-| 6 | **Cancel my ticket**: frees the seat | Lab 3 |
+| 1 | **Account**: register, log in, log out, auto-login, password reset | Lab 1 · #9, #15 |
+| 2 | **Browse events**: real-time list with seats left, *All / Tickets / Mine* filters, offline-first saving | Lab 2 · #10, #12 |
+| 3 | **Create & edit my event**: owner only, enforced by Security Rules | Lab 2 · #10 |
+| 4 | **Get a ticket**: a Cloud Function issues an HMAC-signed QR ticket inside a transaction, so seats can never be overbooked | Lab 3 · #13 |
+| 5 | **Check-in at the door**: camera scanner (with manual fallback). Valid once; reuse, forgery and wrong-event tickets are rejected | Lab 3 · #13 |
+| 6 | **Cancel my ticket**: the seat is freed for someone else | Lab 3 · #13 |
 
-## Data model (Cloud Firestore)
+## How a ticket stays secure
+
+```mermaid
+sequenceDiagram
+  participant S as Student app
+  participant F as Cloud Functions
+  participant DB as Firestore
+  participant O as Organiser app
+  S->>F: issueTicket(eventId)
+  F->>DB: transaction: seats left? create ticket, ticketsIssued + 1
+  F-->>S: ticket (QR = BNCR1.ticketId.HMAC)
+  O->>F: validateTicket(eventId, scanned code)
+  F->>F: verify HMAC (server-only secret, constant time)
+  F->>DB: transaction: valid → used (only once)
+  F-->>O: You're in! / Already used / Invalid
+```
+
+| Threat | Defence |
+|---|---|
+| **Forged QR** | The signature is HMAC-SHA256 with a key that exists only on the server. A code built by anyone else fails verification. |
+| **Overbooking** under simultaneous RSVPs | Seat check and increment happen in one Firestore transaction. Tested: **20 parallel RSVPs for 5 seats → exactly 5 tickets**. |
+| **Screenshot shown twice** | `valid → used` happens once, in a transaction. The second scan returns *Already used* with the check-in time. |
+| **Tampering from the app** | Security Rules: users edit only their own events, cannot change `ownerId` or the seat counter, and can never write tickets. 21 rules tests prove it. |
+| **Duplicate tickets** | The ticket id is `{eventId}_{uid}`, so a repeated RSVP returns the same ticket (idempotent). |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  A[Bouncr app<br/>Flutter + Dart] -->|Auth SDK| B[Firebase Authentication]
+  A -->|Firestore SDK<br/>real-time reads, own events| C[(Cloud Firestore<br/>europe-central2 · Warsaw)]
+  A -->|callable functions| D[Cloud Functions<br/>issueTicket · validateTicket · cancelTicket]
+  D -->|transactions, signed writes| C
+```
+
+| Layer | Folder | Responsibility |
+|---|---|---|
+| Data | `lib/data` | Repositories, the only code that talks to Firebase |
+| Domain | `lib/domain` | Models, pure-Dart validators and error messages (unit-tested) |
+| UI | `lib/ui` | Screens and ViewModels (`ChangeNotifier`). Navigation (`go_router`) reacts to the auth state |
+| Backend | `functions/src` | Callable Cloud Functions (TypeScript). Ticket-code crypto lives in a pure, unit-tested module |
+
+### Data model (Cloud Firestore)
 
 | Collection | Fields (type) | Owner link |
 |---|---|---|
@@ -40,27 +96,16 @@ Individual project, approved by the instructor. Flutter is used instead of Kotli
 | `events` | ownerId (string) · title (string) · description (string) · location (string) · startsAt (timestamp) · capacity (number) · ticketsIssued (number, server-only) | `ownerId` |
 | `tickets` | doc id = `{eventId}_{uid}` · ownerId (string) · eventId (string) · eventTitle (string) · status (`valid` / `used` / `cancelled`) · signature (string) · usedAt (timestamp, nullable) | `ownerId` |
 
-## Architecture
+## Quality
 
-```mermaid
-flowchart LR
-  A[Bouncr app<br/>Flutter + Dart] -->|Auth SDK| B[Firebase Authentication]
-  A -->|Firestore SDK<br/>real-time reads, own events| C[(Cloud Firestore<br/>europe-central2)]
-  A -->|callable functions| D[Cloud Functions<br/>issueTicket · validateTicket · cancelTicket]
-  D -->|transactions, signed writes| C
-```
-
-The app is split into three layers:
-
-| Layer | Folder | Responsibility |
+| Suite | Count | Runs in |
 |---|---|---|
-| Data | `lib/data` | Repositories, the only code that talks to Firebase |
-| Domain | `lib/domain` | Models, pure-Dart validators and error messages (unit-tested) |
-| UI | `lib/ui` | Screens and ViewModels (`ChangeNotifier`). Navigation reacts to the auth state |
+| Flutter unit + widget tests (validators, view models, auth / events / tickets flows) | 38 | `flutter test` |
+| Firestore Security Rules tests (what a client bypassing the app can and cannot do) | 21 | Firestore emulator |
+| Ticket-code unit tests (signing, forgery, malformed codes) | 6 | Node test runner |
+| End-to-end Cloud Functions tests (overbooking, idempotency, check-in, cancel) | 5 | Auth + Firestore + Functions emulators |
 
-## Tech stack
-
-Flutter 3 · Dart 3 · Firebase Authentication · Cloud Firestore · Cloud Functions (TypeScript, Node 22) · go_router · provider · GitHub Projects
+All suites run on every pull request in **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)), and `flutter analyze` reports no issues.
 
 ## How to run
 
@@ -93,39 +138,32 @@ adb reverse tcp:5001 tcp:5001        # once per device (add -s <serial> for seve
 flutter run --dart-define=FUNCTIONS_EMULATOR_HOST=127.0.0.1
 ```
 
+Demo accounts (password `secret123`): **emad.organiser@bouncr-demo.com** organises the demo events, and **emad.guest@bouncr-demo.com** holds tickets.
+
 The Firebase configuration (`lib/firebase_options.dart`, `android/app/google-services.json`) is committed: it identifies the Firebase project and is not a secret. Data is protected by Firestore Security Rules, and the ticket signing key lives only in `functions/.secret.local` (git-ignored) or Secret Manager.
 
 ### Tests
 
 ```bash
-# App: validators, view models and UI flows (no Firebase needed), 38 tests
-flutter test
-
-# Security Rules: 21 cases against the Firestore emulator
+flutter analyze && flutter test
 cd firestore-tests && npm install && npm run test:emulator && cd ..
-
-# Cloud Functions: ticket-code unit tests + end-to-end tests on the Auth/Firestore/Functions
-# emulators, including 20 simultaneous RSVPs for 5 seats → exactly 5 tickets
 cd functions && npm test && npm run test:integration
 ```
 
-## How a ticket stays secure
+## Tech stack
 
-1. **RSVP**: the app calls `issueTicket`. Inside one Firestore transaction the function checks the seats, creates `tickets/{eventId}_{uid}` and increments `ticketsIssued`. Concurrent requests cannot overbook, and a second RSVP returns the same ticket.
-2. **QR code**: `BNCR1.<ticketId>.<signature>`, where the signature is an HMAC-SHA256 made with a server-only secret. A QR built by anyone else fails verification.
-3. **Door check-in**: only the event's organiser can call `validateTicket`. It verifies the signature in constant time and flips `valid` to `used` exactly once in a transaction, so a screenshot shown twice gets *Already used*.
+Flutter 3 · Dart 3 · Firebase Authentication · Cloud Firestore · Cloud Functions (TypeScript, Node 22) · Firebase Emulator Suite · go_router · provider · qr_flutter · mobile_scanner · GitHub Actions · GitHub Projects
 
-### Security Rules
+## Team
 
-All access rules live in [`firestore.rules`](firestore.rules) and are deployed with `firebase deploy --only firestore:rules`:
+| Role | Member |
+|---|---|
+| Product Owner · Tech Lead · Developer · QA / DevOps | Emad Abouelsaad |
 
-- every read and write requires a signed-in user;
-- a user reads and writes only their own profile;
-- anyone signed in can read events, only the owner (`ownerId`) can edit one, and the owner can change neither the owner nor the server-side seat counter;
-- tickets are read-only for the app: only Cloud Functions can create or change them.
+Individual project, approved by the instructor. Flutter is used instead of Kotlin/Compose, also with the instructor's approval.
 
 ## Workflow
 
 - `main` is protected by a ruleset: pull request required, no force pushes, no deletion.
-- Work happens on feature branches (`feature/auth`, …) with small [conventional commits](https://www.conventionalcommits.org/), and each one is squash-merged after review.
-- Planning lives on the [Sprint board](https://github.com/users/Emad-Student/projects/1) with user stories and acceptance criteria.
+- Feature branches with small [conventional commits](https://www.conventionalcommits.org/). Every PR is reviewed, passes CI and is squash-merged.
+- Planning lives on the [Sprint board](https://github.com/users/Emad-Student/projects/1): user stories with acceptance criteria, plus bugs found during testing (#11, #14).
