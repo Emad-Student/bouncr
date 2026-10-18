@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Flutter-3-02569B?logo=flutter" alt="Flutter">
   <img src="https://img.shields.io/badge/Firebase-Auth%20%C2%B7%20Firestore%20%C2%B7%20Functions-FFCA28?logo=firebase&logoColor=black" alt="Firebase">
   <img src="https://img.shields.io/badge/Cloud%20Functions-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/tests-70%20passing-2ea44f" alt="70 tests">
+  <img src="https://img.shields.io/badge/tests-73%20passing-2ea44f" alt="70 tests">
 </p>
 
 ---
@@ -102,7 +102,7 @@ flowchart LR
 |---|---|---|
 | Flutter unit + widget tests (validators, view models, auth / events / tickets flows) | 38 | `flutter test` |
 | Firestore Security Rules tests (what a client bypassing the app can and cannot do) | 21 | Firestore emulator |
-| Ticket-code unit tests (signing, forgery, malformed codes) | 6 | Node test runner |
+| Ticket-code and retry unit tests (signing, forgery, malformed codes, contention backoff) | 9 | Node test runner |
 | End-to-end Cloud Functions tests (overbooking, idempotency, check-in, cancel) | 5 | Auth + Firestore + Functions emulators |
 
 All suites run on every pull request in **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)), and `flutter analyze` reports no issues.
