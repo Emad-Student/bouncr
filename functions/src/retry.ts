@@ -1,15 +1,18 @@
 import { HttpsError } from "firebase-functions/v2/https";
 
 /**
- * Firestore retries a contended transaction a few times on its own, but when
- * many students RSVP for the same event at the same second the transaction can
- * still end with ABORTED ("lock timeout"). Retrying with exponential backoff
- * and random jitter spreads the attempts out, so every caller ends with either
- * a ticket or a clear "sold out" instead of an internal error.
+ * Retries work that lost a race on a contended document, with exponential
+ * backoff and random jitter so competing callers spread out. Covers an
+ * optimistic write whose precondition no longer holds (FAILED_PRECONDITION /
+ * ALREADY_EXISTS) and an aborted transaction (ABORTED). Every caller ends with
+ * a result, a business error such as "sold out", or a clear "try again".
  */
-/** gRPC status code of an aborted (contended) Firestore transaction. */
+/** gRPC status codes of a lost race on a Firestore document. */
+export const ALREADY_EXISTS = 6;
+export const FAILED_PRECONDITION = 9;
 export const ABORTED = 10;
-export const MAX_ATTEMPTS = 8;
+const CONFLICT_CODES = new Set<unknown>([ALREADY_EXISTS, FAILED_PRECONDITION, ABORTED]);
+export const MAX_ATTEMPTS = 30;
 
 export async function withContentionRetry<T>(
   work: () => Promise<T>,
@@ -19,15 +22,16 @@ export async function withContentionRetry<T>(
     try {
       return await work();
     } catch (error) {
-      const aborted = (error as { code?: unknown }).code === ABORTED;
-      if (!aborted) throw error;
+      const conflict = CONFLICT_CODES.has((error as { code?: unknown }).code);
+      if (!conflict) throw error;
       if (attempt >= MAX_ATTEMPTS) {
         throw new HttpsError(
           "aborted",
           "Lots of people are getting tickets right now. Please try again in a moment.",
         );
       }
-      await sleep(Math.min(2000, 50 * 2 ** attempt) * (0.5 + Math.random()));
+      await sleep(Math.min(1000, 20 * 1.5 ** attempt) * (0.5 + Math.random()));
     }
   }
 }
+

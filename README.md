@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Flutter-3-02569B?logo=flutter" alt="Flutter">
   <img src="https://img.shields.io/badge/Firebase-Auth%20%C2%B7%20Firestore%20%C2%B7%20Functions-FFCA28?logo=firebase&logoColor=black" alt="Firebase">
   <img src="https://img.shields.io/badge/Cloud%20Functions-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/tests-73%20passing-2ea44f" alt="70 tests">
+  <img src="https://img.shields.io/badge/tests-74%20passing-2ea44f" alt="70 tests">
 </p>
 
 ---
@@ -42,7 +42,7 @@ Built with **Flutter** and **Firebase (Google Cloud)** for the course *Project �
 | 1 | **Account**: register, log in, log out, auto-login, password reset | Lab 1 · #9, #15 |
 | 2 | **Browse events**: real-time list with seats left, *All / Tickets / Mine* filters, offline-first saving | Lab 2 · #10, #12 |
 | 3 | **Create & edit my event**: owner only, enforced by Security Rules | Lab 2 · #10 |
-| 4 | **Get a ticket**: a Cloud Function issues an HMAC-signed QR ticket inside a transaction, so seats can never be overbooked | Lab 3 · #13 |
+| 4 | **Get a ticket**: a Cloud Function issues an HMAC-signed QR ticket with optimistic concurrency control, so seats can never be overbooked | Lab 3 · #13, #20 |
 | 5 | **Check-in at the door**: camera scanner (with manual fallback). Valid once; reuse, forgery and wrong-event tickets are rejected | Lab 3 · #13 |
 | 6 | **Cancel my ticket**: the seat is freed for someone else | Lab 3 · #13 |
 
@@ -55,7 +55,7 @@ sequenceDiagram
   participant DB as Firestore
   participant O as Organiser app
   S->>F: issueTicket(eventId)
-  F->>DB: transaction: seats left? create ticket, ticketsIssued + 1
+  F->>DB: read event, then atomic batch if unchanged: create ticket, ticketsIssued + 1
   F-->>S: ticket (QR = BNCR1.ticketId.HMAC)
   O->>F: validateTicket(eventId, scanned code)
   F->>F: verify HMAC (server-only secret, constant time)
@@ -66,7 +66,7 @@ sequenceDiagram
 | Threat | Defence |
 |---|---|
 | **Forged QR** | The signature is HMAC-SHA256 with a key that exists only on the server. A code built by anyone else fails verification. |
-| **Overbooking** under simultaneous RSVPs | Seat check and increment happen in one Firestore transaction. Tested: **20 parallel RSVPs for 5 seats → exactly 5 tickets**. |
+| **Overbooking** under simultaneous RSVPs | Optimistic concurrency control: the ticket and the seat counter are written in one atomic batch that only commits if the event is unchanged since it was read (`lastUpdateTime` precondition). A lost race fails fast and retries with backoff and jitter, with no locks and no deadlocks. Tested: **20 parallel RSVPs for 5 seats → exactly 5 tickets** in CI, 40 → 5 locally. |
 | **Screenshot shown twice** | `valid → used` happens once, in a transaction. The second scan returns *Already used* with the check-in time. |
 | **Tampering from the app** | Security Rules: users edit only their own events, cannot change `ownerId` or the seat counter, and can never write tickets. 21 rules tests prove it. |
 | **Duplicate tickets** | The ticket id is `{eventId}_{uid}`, so a repeated RSVP returns the same ticket (idempotent). |
@@ -102,7 +102,7 @@ flowchart LR
 |---|---|---|
 | Flutter unit + widget tests (validators, view models, auth / events / tickets flows) | 38 | `flutter test` |
 | Firestore Security Rules tests (what a client bypassing the app can and cannot do) | 21 | Firestore emulator |
-| Ticket-code and retry unit tests (signing, forgery, malformed codes, contention backoff) | 9 | Node test runner |
+| Ticket-code and retry unit tests (signing, forgery, malformed codes, conflict retry) | 10 | Node test runner |
 | End-to-end Cloud Functions tests (overbooking, idempotency, check-in, cancel) | 5 | Auth + Firestore + Functions emulators |
 
 All suites run on every pull request in **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)), and `flutter analyze` reports no issues.

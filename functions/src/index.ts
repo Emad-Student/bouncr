@@ -82,18 +82,23 @@ const ticketRef = (id: string) => db().collection("tickets").doc(id);
 /**
  * RSVP: issues a signed ticket for the caller.
  * Idempotent: a second call returns the existing ticket.
+ *
+ * Uses optimistic concurrency instead of a locking transaction: the event is
+ * read without a lock, then the ticket and the seat counter are written in one
+ * atomic batch that only commits if the event is unchanged since it was read
+ * (`lastUpdateTime` precondition). A concurrent RSVP makes the batch fail fast,
+ * and the caller re-reads and tries again, so a burst of RSVPs never deadlocks
+ * and can never issue more tickets than seats.
  */
-// A burst of RSVPs for one event is serialised by Firestore; with retries the
-// last callers can need more than the default 60 s on slow machines.
-export const issueTicket = onCall({ secrets: [signingSecret], timeoutSeconds: 120 }, async (request) => {
+export const issueTicket = onCall({ secrets: [signingSecret] }, async (request) => {
   const uid = requireUid(request);
   const eventId = requireEventId(request.data);
   const ticketId = ticketIdFor(eventId, uid);
 
-  return withContentionRetry(() => db().runTransaction(async (tx) => {
+  return withContentionRetry(async () => {
     const [eventSnap, ticketSnap] = await Promise.all([
-      tx.get(eventRef(eventId)),
-      tx.get(ticketRef(ticketId)),
+      eventRef(eventId).get(),
+      ticketRef(ticketId).get(),
     ]);
     if (!eventSnap.exists) throw new HttpsError("not-found", "This event no longer exists.");
     const event = eventSnap.data() as EventDoc;
@@ -117,10 +122,21 @@ export const issueTicket = onCall({ secrets: [signingSecret], timeoutSeconds: 12
       signature: sign(ticketId, signingSecret.value()),
       usedAt: null,
     };
-    tx.set(ticketRef(ticketId), ticket);
-    tx.update(eventRef(eventId), { ticketsIssued: fieldValue().increment(1) });
+    const batch = db().batch();
+    if (existing) {
+      // re-issuing a cancelled ticket: only if nobody changed it meanwhile
+      batch.update(ticketRef(ticketId), { ...ticket }, { lastUpdateTime: ticketSnap.updateTime! });
+    } else {
+      batch.create(ticketRef(ticketId), ticket); // fails if it appeared meanwhile
+    }
+    batch.update(
+      eventRef(eventId),
+      { ticketsIssued: fieldValue().increment(1) },
+      { lastUpdateTime: eventSnap.updateTime! },
+    );
+    await batch.commit();
     return { ticketId, status: ticket.status, created: true };
-  }));
+  });
 });
 
 type ScanResult = "admitted" | "already_used" | "cancelled" | "wrong_event" | "invalid";

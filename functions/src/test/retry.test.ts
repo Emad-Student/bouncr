@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 
-import { ABORTED, MAX_ATTEMPTS, withContentionRetry } from "../retry";
+import { ABORTED, FAILED_PRECONDITION, MAX_ATTEMPTS, withContentionRetry } from "../retry";
 
 const noSleep = async () => {};
 const aborted = () => Object.assign(new Error("lock timeout"), { code: ABORTED });
@@ -16,6 +16,17 @@ describe("withContentionRetry", () => {
     }, noSleep);
     assert.equal(result, "ticket");
     assert.equal(calls, 3);
+  });
+
+  it("retries an optimistic write whose precondition failed", async () => {
+    let calls = 0;
+    const result = await withContentionRetry(async () => {
+      calls++;
+      if (calls === 1) throw Object.assign(new Error("stale"), { code: FAILED_PRECONDITION });
+      return "ok";
+    }, noSleep);
+    assert.equal(result, "ok");
+    assert.equal(calls, 2);
   });
 
   it("does not retry other errors (e.g. sold out)", async () => {
@@ -43,3 +54,4 @@ describe("withContentionRetry", () => {
     assert.equal(calls, MAX_ATTEMPTS);
   });
 });
+
