@@ -83,7 +83,9 @@ const ticketRef = (id: string) => db().collection("tickets").doc(id);
  * RSVP: issues a signed ticket for the caller.
  * Idempotent: a second call returns the existing ticket.
  */
-export const issueTicket = onCall({ secrets: [signingSecret] }, async (request) => {
+// A burst of RSVPs for one event is serialised by Firestore; with retries the
+// last callers can need more than the default 60 s on slow machines.
+export const issueTicket = onCall({ secrets: [signingSecret], timeoutSeconds: 120 }, async (request) => {
   const uid = requireUid(request);
   const eventId = requireEventId(request.data);
   const ticketId = ticketIdFor(eventId, uid);
